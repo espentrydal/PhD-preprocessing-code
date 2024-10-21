@@ -1,0 +1,65 @@
+options:
+  bidscoin:
+    version: 3.0.5
+  plugins:
+    - bidscoiner
+    - dcm2niix2bids
+
+DICOM:
+  subject: <<SourceFilePath>>
+  session: <<SourceFilePath>>
+  anat:
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: T1w
+      attributes:
+        SeriesDescription: "T1w_MPR"
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: bold
+      attributes:
+        SeriesDescription: "fMRI_task1"
+  func:
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: T1w
+      attributes:
+        SeriesDescription: "T1w_FLAIR"
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: bold
+      attributes:
+        SeriesDescription: "fMRI_task2"
+  dwi:
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: dwi
+      attributes:
+        SeriesDescription: "DTI_30dir"
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: T1w
+      attributes:
+        SeriesDescription: "T1w_MPRAGE"
+  extra_data:
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: bold
+      attributes:
+        SeriesDescription: "resting_state_fMRI"
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: dwi
+      attributes:
+        SeriesDescription: "DTI_60dir"
+  anat:
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: dwi
+      attributes:
+        SeriesDescription: "DTI_15dir"
+    - provenance: dcm2niix2bids
+      bids:
+        suffix: bold
+      attributes:
+        SeriesDescription: "fMRI_task3"

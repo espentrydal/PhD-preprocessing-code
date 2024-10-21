@@ -1,0 +1,28 @@
+# ADNI Processing Configuration
+
+# Input/Output
+parquet_path: "/path/to/bids_layout.parquet"
+adnimerge_csv: "/path/to/adnimerge.csv"
+output_dir: "/path/to/output"
+
+# Data Selection
+phases:
+  - "ADNI3"
+valid_dx:
+  - "cn"
+  - "mci"
+  - "dementia"
+suffix: "T1w"
+trc: ""
+rec: ""
+desc: ""
+res: ""
+
+# Processing
+n_proc: 8
+train_split: 0.8
+val_split: 0.1
+
+# Logging
+log_level: "INFO"
+log_file: "adni_processing.log"

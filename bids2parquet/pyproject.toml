@@ -1,0 +1,22 @@
+[project]
+name = "bids2parquet"
+version = "0.1.0"
+description = "A tool to convert BIDS neuroimaging data to Parquet format"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["nibabel", "numpy", "polars", "pyarrow"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.pyright]
+exclude = [".venv"]
+venvPath = "."
+venv = ".venv"
+
+[tool.uv]
+dev-dependencies = ["ipython>=8.27.0", "ipdb>=0.13.13"]

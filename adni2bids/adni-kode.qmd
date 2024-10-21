@@ -1,0 +1,171 @@
+---
+title: ADNI code
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+
+
+## Load environment Python {#load-environment-python}
+
+```{python}
+import numpy as np
+import pandas as pd
+from pandas import Series, DataFrame
+
+pd.options.display.max_rows = 10
+```
+
+
+## Information on participants {#information-on-participants}
+
+```{python}
+adni_path = '/home/espen/forskningsdata/adni_clinical/'
+df_adnimerge_participants = pd.read_csv(adni_path + 'ADNIMERGE.csv',
+                    delimiter = ',', usecols = ['PTID'])
+
+print("Total number of participants in the database (from ADNIMERGE.csv):", df_adnimerge_participants['PTID'].nunique(), '\n')
+```
+
+
+### Information on participants for downloaded images {#information-on-participants-for-downloaded-images}
+
+```{python}
+bids_path = '/home/espen/forskningsdata/adni-bids/'
+df_bids_participants = pd.read_csv(bids_path + 'participants.tsv',
+                    delimiter = '\t', usecols = ['participant_id', 'alternative_id_1','sex','age_bl','ethnic_cat','diagnosis_sc'])
+
+print("Number of participants (from participants.tsv):", df_bids_participants['participant_id'].nunique(), '\n')
+print(df_bids_participants['sex'].value_counts(normalize=True), '\n')
+print(df_bids_participants['ethnic_cat'].value_counts(normalize=True), '\n')
+print(df_bids_participants['diagnosis_sc'].value_counts(normalize=True), '\n')
+print("Age at baseline:\n", pd.cut(df_bids_participants['age_bl'], [18, 65, 90, 100]).value_counts(normalize=True))
+```
+
+
+## Information on downloaded images {#information-on-downloaded-images}
+
+
+### T1 {#t1}
+
+```{python}
+df_t1 = pd.read_csv(bids_path + 'conversion_info/v0/t1_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Field_Strength', 'Scan_Date'])
+
+print("Number of participants with T1 in downloaded files:", df_t1['Subject_ID'].nunique())
+
+print("Total number of T1 investigations:", df_t1.shape[0])
+print("\nNumber of T1 investigations per field strength:\n", df_t1['Field_Strength'].value_counts())
+```
+
+
+### T1 3T {#t1-3t}
+
+```{python}
+df_t1_3T = df_t1[df_t1['Field_Strength'] == 3.0].copy()
+
+df_t1_3T['Scan_Date'] = pd.to_datetime(df_t1_3T['Scan_Date'])
+print("Is the Scan_Date column in datetime format?:",\
+      df_t1_3T['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_t1_3T['Scan_Date'].dtypes, '\n')
+
+df_t1_3T_dates = df_t1_3T[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+df_date_count = df_t1_3T_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+#print(df_date_count.head(), '\n')
+print("Number of participants with T1 3T:", df_t1_3T['Subject_ID'].nunique())
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+```
+
+
+### FDG-PET {#fdg-pet}
+
+```{python}
+df_pet = pd.read_csv(bids_path + 'conversion_info/v0/18FFDG_pet_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Phase'])
+
+print("Participants with FDG-PET:", df_pet['Subject_ID'].nunique())
+print("Number of FDG-PET investigations:", df_pet.shape[0])
+print("\nNumber of PET investigations per ADNI phase:\n", df_pet['Phase'].value_counts())
+```
+
+```{python}
+df_pet['Scan_Date'] = pd.to_datetime(df_pet['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_pet['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_pet['Scan_Date'].dtypes, '\n')
+
+df_pet_dates = df_pet[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_pet_dates.value_counts())
+
+df_date_count = df_pet_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+```
+
+
+### fMRI {#fmri}
+
+```{python}
+df_fmri = pd.read_csv(bids_path + 'conversion_info/v0/fmri_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Visit'])
+
+print("Participants with fMRI:", df_fmri['Subject_ID'].nunique())
+print("Number of fMRI investigations:", df_fmri.shape[0])
+```
+
+```{python}
+df_fmri['Scan_Date'] = pd.to_datetime(df_fmri['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_fmri['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_fmri['Scan_Date'].dtypes, '\n')
+
+df_fmri_dates = df_fmri[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_fmri_dates.value_counts())
+
+df_date_count = df_fmri_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+```
+
+
+### DWI {#dwi}
+
+```{python}
+df_dwi = pd.read_csv(bids_path + 'conversion_info/v0/dwi_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Visit'])
+
+print("Participants with DWI:", df_dwi['Subject_ID'].nunique())
+print("Number of DWI investigations:", df_dwi.shape[0])
+```
+
+```{python}
+df_dwi['Scan_Date'] = pd.to_datetime(df_dwi['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_dwi['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_dwi['Scan_Date'].dtypes, '\n')
+
+df_dwi_dates = df_dwi[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_dwi_dates.value_counts())
+
+df_date_count = df_dwi_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+```
