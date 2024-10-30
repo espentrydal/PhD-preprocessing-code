@@ -1,0 +1,2 @@
+dicomsort -p "(^(MR|IM).)*|(.*\.(IMA|dcm)$)" -f "{PatientID}_{SeriesNumber:03d}" -n "{PatientID}_{SeriesNumber:03d}_{SeriesDescription}_{InstanceNumber:05d}.dcm" .
+
