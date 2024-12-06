@@ -1,0 +1,375 @@
+#+title: ADNI-kode
+
+---
+title: ADNI code
+format:
+  html:
+    code-fold: true
+jupyter: python3
+---
+
+* Clinica conversion :noexport:
+
+#+begin_src example
+# clinica convert adni-to-bids [OPTIONS] DATASET_DIRECTORY CLINICAL_DATA_DIRECTORY BIDS_DIRECTORY
+$ clinica convert adni-to-bids ~/forskningsdata/ADNI ~/forskningsdata/adni-clinical ~/forskningsdata/adni-bids
+#+end_src
+
+* Load environment org-babel :noexport:
+#+begin_src emacs-lisp :session part1
+(conda-env-activate "pydata") ;; only once!
+#+end_src
+
+#+RESULTS:
+: Switched to conda environment: /home/espen/miniconda3/envs/pydata/
+
+#+begin_src emacs-lisp :session part1 :exports none
+(setq org-structure-template-alist
+      '(("e" . "emacs-lisp :session part1")
+        ("s" . "src")
+        ("g" . "src python :results graphics file output :file plot1.svg :session part1")
+        ("p" . "src python :results output :session part1")))
+#+end_src
+
+#+RESULTS:
+: ((e . emacs-lisp :session part1) (s . src) (g . src python :results graphics file output :file plot1.svg :session part1) (p . src python :results output :session part1 :tangle no :comments link))
+
+* Load environment Python
+#+begin_src python :results output :session part1 :tangle no :comments link
+import numpy as np
+import pandas as pd
+from bids.layout import BIDSLayout
+
+bids_path = '/home/espen/forskningsdata/adni-bids/'
+#+end_src
+
+#+RESULTS:
+
+* Information on participants
+#+begin_src python :results output :session part1
+pd.options.display.max_rows = 10
+adni_path = '/home/espen/forskningsdata/adni-clinical/'
+
+df_adnimerge_participants = pd.read_csv(adni_path + 'ADNIMERGE.csv',
+                    delimiter = ',', usecols = ['PTID'])
+
+print("Total number of participants in the database (from ADNIMERGE.csv):", df_adnimerge_participants['PTID'].nunique(), '\n')
+#+end_src
+
+#+RESULTS:
+: Total number of participants in the database (from ADNIMERGE.csv): 2430
+
+** Information on participants for downloaded images
+#+begin_src python :results output :session part1
+df_bids_participants = pd.read_csv(bids_path + 'participants.tsv',
+                    delimiter = '\t', usecols = ['participant_id', 'alternative_id_1','sex','age_bl','ethnic_cat','diagnosis_sc'])
+
+print("Number of participants (from participants.tsv):", df_bids_participants['participant_id'].nunique(), '\n')
+print(df_bids_participants['sex'].value_counts(normalize=True), '\n')
+print(df_bids_participants['ethnic_cat'].value_counts(normalize=True), '\n')
+print(df_bids_participants['diagnosis_sc'].value_counts(normalize=True), '\n')
+print("Age at baseline:\n", pd.cut(df_bids_participants['age_bl'], [18, 65, 90, 100]).value_counts(normalize=True))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Number of participants (from participants.tsv): 2141
+
+sex
+M    0.524054
+F    0.475946
+Name: proportion, dtype: float64
+
+ethnic_cat
+Not Hisp/Latino    0.945820
+Hisp/Latino        0.049043
+Unknown            0.005138
+Name: proportion, dtype: float64
+
+diagnosis_sc
+CN      0.342830
+LMCI    0.201775
+AD      0.150397
+EMCI    0.145726
+MCI     0.109762
+SMC     0.049510
+Name: proportion, dtype: float64
+
+Age at baseline:
+ age_bl
+(65, 90]     0.848386
+(18, 65]     0.148339
+(90, 100]    0.003276
+Name: proportion, dtype: float64
+#+end_example
+
+* Information on downloaded images
+** T1
+#+begin_src python :results output :session part1
+df_t1 = pd.read_csv(bids_path + 'conversion_info/v0/t1_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Field_Strength', 'Scan_Date'])
+
+print("Number of participants with T1 in downloaded files:", df_t1['Subject_ID'].nunique())
+
+print("Total number of T1 investigations:", df_t1.shape[0])
+print("\nNumber of T1 investigations per field strength:\n", df_t1['Field_Strength'].value_counts())
+#+end_src
+
+#+RESULTS:
+: Number of participants with T1 in downloaded files: 2413
+: Total number of T1 investigations: 10862
+:
+: Number of T1 investigations per field strength:
+:  Field_Strength
+: 3.0    6566
+: 1.5    4296
+: Name: count, dtype: int64
+
+** T1 3T
+#+begin_src python :results output :session part1
+df_t1_3T = df_t1[df_t1['Field_Strength'] == 3.0].copy()
+
+df_t1_3T['Scan_Date'] = pd.to_datetime(df_t1_3T['Scan_Date'])
+print("Is the Scan_Date column in datetime format?:",\
+      df_t1_3T['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_t1_3T['Scan_Date'].dtypes, '\n')
+
+df_t1_3T_dates = df_t1_3T[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+df_date_count = df_t1_3T_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+#print(df_date_count.head(), '\n')
+print("Number of participants with T1 3T:", df_t1_3T['Subject_ID'].nunique())
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+#+end_src
+
+#+RESULTS:
+: Is the Scan_Date column in datetime format?: True : datetime64[ns]
+:
+: Number of participants with T1 3T: 1734
+: Number of patients with only baseline: 404
+: Number of patients with follow up: 1330
+
+** List all participants with T1 in a participants file
+*** From participants.tsv and t1_paths.tsv
+#+begin_src python :results output :session part1
+df_t1_participant_id = pd.merge(df_t1, df_bids_participants, left_on='Subject_ID', right_on='alternative_id_1')
+print(df_t1_participant_id.head(2))
+print("Participants with T1 successfully converted to BIDS format (QC ok):", df_t1_participant_id['participant_id'].nunique())
+print("Participants with T1 3T successfully converted:",\
+      df_t1_participant_id.loc[df_t1_participant_id['Field_Strength'] == 3]['participant_id'].nunique())
+#+end_src
+
+#+RESULTS:
+:    Subject_ID   Scan_Date  Field_Strength alternative_id_1    participant_id sex  age_bl       ethnic_cat diagnosis_sc
+: 0  011_S_0002  2005-08-26             1.5       011_S_0002  sub-ADNI011S0002   M    74.3  Not Hisp/Latino           CN
+: 1  011_S_0003  2005-09-01             1.5       011_S_0003  sub-ADNI011S0003   M    81.3  Not Hisp/Latino           AD
+: Participants with T1 successfully converted to BIDS format (QC ok): 2135
+: Participants with T1 3T successfully converted: 1734
+
+** FDG-PET
+#+begin_src python :results output :session part1
+df_pet = pd.read_csv(bids_path + 'conversion_info/v0/18FFDG_pet_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Phase'])
+
+print("Participants with FDG-PET:", df_pet['Subject_ID'].nunique())
+print("Number of FDG-PET investigations:", df_pet.shape[0])
+print("\nNumber of PET investigations per ADNI phase:\n", df_pet['Phase'].value_counts())
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Participants with FDG-PET: 1688
+Number of FDG-PET investigations: 3755
+
+Number of PET investigations per ADNI phase:
+ Phase
+ADNI1     1735
+ADNI2     1337
+ADNI3      410
+ADNIGO     273
+Name: count, dtype: int64
+#+end_example
+
+#+begin_src python :results output :session part1
+df_pet['Scan_Date'] = pd.to_datetime(df_pet['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_pet['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_pet['Scan_Date'].dtypes, '\n')
+
+df_pet_dates = df_pet[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_pet_dates.value_counts())
+
+df_date_count = df_pet_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+#+end_src
+
+#+RESULTS:
+:
+: Is the Scan_Date column in datetime format?: True : datetime64[ns]
+:
+: FDG-PET:
+: Number of patients with only baseline: 831
+: Number of patients with follow up: 857
+
+*** fMRI
+#+begin_src python :results output :session part1
+df_fmri = pd.read_csv(bids_path + 'conversion_info/v0/fmri_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Visit'])
+
+print("Participants with fMRI:", df_fmri['Subject_ID'].nunique())
+print("Number of fMRI investigations:", df_fmri.shape[0])
+#+end_src
+
+#+RESULTS:
+: Participants with fMRI: 1010
+: Number of fMRI investigations: 2553
+
+#+begin_src python :results output :session part1
+df_fmri['Scan_Date'] = pd.to_datetime(df_fmri['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_fmri['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_fmri['Scan_Date'].dtypes, '\n')
+
+df_fmri_dates = df_fmri[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_fmri_dates.value_counts())
+
+df_date_count = df_fmri_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+#+end_src
+
+*** DWI
+#+begin_src python :results output :session part1
+df_dwi = pd.read_csv(bids_path + 'conversion_info/v0/dwi_paths.tsv',
+                       delimiter = '\t', usecols = ['Subject_ID', 'Scan_Date', 'Visit'])
+
+print("Participants with DWI:", df_dwi['Subject_ID'].nunique())
+print("Number of DWI investigations:", df_dwi.shape[0])
+#+end_src
+
+#+RESULTS:
+: Participants with DWI: 1036
+: Number of DWI investigations: 2721
+
+#+begin_src python :results output :session part1
+df_dwi['Scan_Date'] = pd.to_datetime(df_dwi['Scan_Date'])
+print("\nIs the Scan_Date column in datetime format?:",\
+      df_dwi['Scan_Date'].dtypes == 'datetime64[ns]', ":", df_dwi['Scan_Date'].dtypes, '\n')
+
+df_dwi_dates = df_dwi[['Subject_ID', 'Scan_Date']].groupby(['Subject_ID'])
+
+#print("\n", df_dwi_dates.value_counts())
+
+df_date_count = df_dwi_dates['Scan_Date'].apply(len).reset_index()
+df_date_count.columns = ['subject_id', 'number_of_scans']
+df_date_count['follow_up'] = df_date_count['number_of_scans']\
+    .apply(lambda x: False if x == 1 else True)
+
+print("Number of patients with only baseline:", df_date_count.loc[df_date_count['follow_up'] == False]['subject_id'].count())
+print("Number of patients with follow up:", df_date_count.loc[df_date_count['follow_up'] == True]['subject_id'].count())
+#+end_src
+
+#+RESULTS:
+:
+: Is the Scan_Date column in datetime format?: True : datetime64[ns]
+:
+: DWI:
+: Number of patients with only baseline: 383
+: Number of patients with follow up: 653
+
+* Analyzing data with Pybids
+** T1 and PET
+Problem: Clinica wants a list of PET scans to normalize. But it also needs the
+(already normalized) T1 for this. We need a list of subjects with both PET and T1.
+
+*** Make tsv (concurrent)
+#+begin_src python :results output :session part1 :tangle subjects_t1_pet.py :comments link :noeval
+import numpy as np
+import pandas as pd
+from bids.layout import BIDSLayout
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
+
+bids_path = '/home/espen/forskningsdata/adni-bids/'
+num_parallell_jobs=30
+
+def get_sessions(subject):
+    """
+    This function takes a subject ID as inbut and returns a list of sessions
+    for that subject where both PET and T1w files exist.
+
+    Parameters:
+    subject (str): Subject ID
+
+    Returns:
+    list: A list of tuples containing subject and session IDs where both PET and
+    T1w files exist.
+    """
+    # Get all sessions for the current subject
+    sessions = layout.get_sessions(subject=subject)
+    # Initialize a list to store sessions with both PET and T1w
+    subject_session_list = []
+
+    # Check each session for both PET and T1w images
+    try:
+        for session in sessions:
+            # Check if PET and T1w files exist for the current subject and session
+            pet_files = layout.get(subject=subject, session=session, datatype='pet')
+            t1w_files = layout.get(subject=subject, session=session, datatype='anat', suffix='T1w')
+
+            if pet_files and t1w_files:
+                subject_session_list.append(['sub-' + subject, 'ses-' + session])
+    except Exception as e:
+        print(f"Error checking for PET and T1 scans for {subject} in session {session}: {e}")
+
+    return subject_session_list
+
+if __name__ == '__main__':
+    """
+    Main program to geterate TSV file with subject and session IDs for
+    subjects with both PET and T1w images
+
+    Steps:
+    - Read the layout from the BIDS dataset.
+    - Get a list of all subjects in the dataset.
+    - Use concurrent programming to check for PET and T1w files concurrently.
+    - Save the results as a TSV file.
+    """
+    print(f"Reading layout from {bids_path}...", end='', flush=True)
+    # Initialize the BIDSLayout object to interact with the BIDS dataset
+    layout = BIDSLayout(bids_path)
+    print("ok")
+    print(layout)
+
+    # Get a list of all subjects in the dataset
+    subjects = layout.get_subjects()
+
+    with ProcessPoolExecutor(max_workers=num_parallell_jobs) as executor:
+        all_results = []
+        # Submit tasks for each subject and process the results concurrently
+        for subject_session_list in tqdm(executor.map(get_sessions, subjects)):
+            try:
+                all_results.extend([(subject, session) for subject, session in subject_session_list])
+            except Exception as e:
+                print(f"Error processing subject {subject}: {e}")
+
+        df_t1_pet = pd.DataFrame(all_results, columns=['participant_id', 'session_id'])
+
+        csv_file_path = 'subjects_t1_pet.tsv'
+        df_t1_pet.to_csv(csv_file_path, sep='\t', index=False)
+
+        print(f"Results saved to {csv_file_path}")
+#+end_src
